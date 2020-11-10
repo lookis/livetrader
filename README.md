@@ -11,7 +11,12 @@ livetrader 是一个整合了行情和交易接口的工具链。现在已经有
 
 ### 使用方式
 
-可以参考 examples 目录里的代码
+#### 安装
+
+```bash
+pip install -U livetrader
+```
+使用：可以参考 examples 目录里的代码
 
 ```python
 # 作为模块启动
