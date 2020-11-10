@@ -1,0 +1,6 @@
+environs
+zerorpc
+pymongo
+motor
+click
+tzlocal

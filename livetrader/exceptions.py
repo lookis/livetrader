@@ -1,0 +1,2 @@
+class RemoteError(Exception):
+    pass
