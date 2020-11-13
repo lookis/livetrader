@@ -82,7 +82,7 @@ class DwxMarket(MarketBase):
                 kline = await self._kline_sub[code].get()
                 yield kline
 
-    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, to_ts: Optional[int] = None, limit: Optional[int] = None):
+    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, to_ts: Optional[int] = None, limit: Optional[int] = None, timeframe: Optional[int] = 1):
         market, code = symbol.split('.')
         if market == 'FOREX':
             local_tz = tzlocal.get_localzone()
@@ -101,7 +101,7 @@ class DwxMarket(MarketBase):
             _end = _end.astimezone(self._server_tz)
             self._kline_resp[code] = Queue()
             await self._connector._DWX_MTX_SEND_HIST_REQUEST_(_symbol=code,
-                                                              _timeframe=1,
+                                                              _timeframe=timeframe,
                                                               _start=_start.strftime(
                                                                   '%Y.%m.%d %H:%M:00'),
                                                               _end=_end.strftime('%Y.%m.%d %H:%M:00'))

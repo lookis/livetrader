@@ -15,6 +15,14 @@ class TdxMarket(MarketBase):
     __market_name__ = 'TDX'
     __timeframe__ = '1MIN'
 
+    __KLINE_TYPES = {
+        1: TDXParams.KLINE_TYPE_1MIN,
+        5: TDXParams.KLINE_TYPE_5MIN,
+        15: TDXParams.KLINE_TYPE_15MIN,
+        30: TDXParams.KLINE_TYPE_30MIN,
+        60: TDXParams.KLINE_TYPE_1HOUR,
+        1440: TDXParams.KLINE_TYPE_DAILY}
+
     def __init__(self, host: Optional[str] = None):
         self._env = env = Env()
         env.read_env()
@@ -52,24 +60,23 @@ class TdxMarket(MarketBase):
                 last_kline = latest_kline
             await sleep(1)
 
-    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, to_ts: Optional[int] = None, limit: Optional[int] = None):
+    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, to_ts: Optional[int] = None, limit: Optional[int] = None, timeframe: Optional[int] = 1):
         market, code = symbol.split('.')
         if self._market_mapping[market] in self._market_list:
             bars = []
+            # 因为通达信的接口设计原因，所以from_ts 和 limit 至少有一个，然后 to_ts 最后做过滤是为了保证接口语义正确
             if from_ts is not None:
                 idx = 0
                 while len(bars) == 0 or bars[-1]['datetime'] >= from_ts:
                     bars += [
                         self._parse_kline(bar) for bar in reversed(
                             self._get_instrument_bars(
-                                TDXParams.KLINE_TYPE_1MIN,
+                                self.__class__.__KLINE_TYPES[timeframe],
                                 self._market_mapping[market],
                                 code, idx * 700, 700))]
                     idx += 1
                 # 前面都是整700地取，所以有可能取到的数据会超过 from_ts,因此这里再做一次过滤
                 bars = list(filter(lambda x: x['datetime'] >= from_ts, bars))
-                if to_ts:
-                    bars = list(filter(lambda x: x['datetime'] <= to_ts, bars))
             elif limit is not None:
                 for i in range(limit // 700):
                     bars += [
@@ -85,6 +92,9 @@ class TdxMarket(MarketBase):
                             self._market_mapping[market],
                             code, limit // 700 * 700,
                             limit % 700))]
+
+            if to_ts:
+                bars = list(filter(lambda x: x['datetime'] <= to_ts, bars))
             return reversed(bars)
 
     def disconnect(self):

@@ -51,8 +51,8 @@ class MarketService(object):
 
     @Method
     async def get_kline_histories(
-            self, symbol: str, from_ts: Optional[int] = None, to_ts: Optional[int] = None, limit: Optional[int] = None):
-        return list(await self._market.get_kline_histories(symbol, from_ts, to_ts, limit))
+            self, symbol: str, from_ts: Optional[int] = None, to_ts: Optional[int] = None, limit: Optional[int] = None, timeframe: Optional[int] = 1):
+        return list(await self._market.get_kline_histories(symbol, from_ts, to_ts, limit, timeframe))
 
     def stop(self):
         for task in self._tasks:

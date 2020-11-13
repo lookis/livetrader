@@ -68,11 +68,12 @@ class CachedMarket(MarketBase):
             await self._insert_db(symbol, [kline])
             yield kline
 
-    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, to_ts: Optional[int] = None, limit: Optional[int] = None):
+    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, to_ts: Optional[int] = None, limit: Optional[int] = None, timeframe: Optional[int] = 1):
         if not self._initied:
             await self._initial_cache(symbol)
             self._initied = True
         collection = self._collection(symbol)
+        pipeline = []
         criteria = {}
         datetime_criteria = {}
         if from_ts:
@@ -81,10 +82,25 @@ class CachedMarket(MarketBase):
             datetime_criteria['$lte'] = to_ts
         if from_ts or to_ts:
             criteria['datetime'] = datetime_criteria
-        cursor = collection.find(criteria).sort([('datetime', -1)])
+            pipeline.append({'$match': criteria})
+        pipeline.append({'$group': {
+            '_id': {'$floor': {'$divide': ["$datetime", 1000 * 60 * timeframe]}},
+            'datetime': {'$first': "$datetime"},
+            'open': {'$first': "$open"},
+            'high': {'$max': "$high"},
+            'low': {'$min': "$low"},
+            'close': {'$last': "$close"},
+            'volume': {'$sum': "$volume"}
+        }})
         if limit:
-            cursor = cursor.limit(limit)
-            count = limit
-        else:
-            count = await collection.count_documents(criteria)
-        return reversed(list(map(lambda x: {k: v for k, v in iteritems(x) if not k.startswith('_')}, await cursor.to_list(count))))
+            pipeline.append({'$sort': {'datetime': -1}})
+            pipeline.append({
+                '$limit': limit
+            })
+        pipeline.append({'$sort': {'datetime': 1}})
+        cursor = collection.aggregate(pipeline)
+        rst = []
+        async for document in cursor:
+            rst.append(document)
+        return list(
+            map(lambda x: {k: v for k, v in iteritems(x) if not k.startswith('_')}, rst))
