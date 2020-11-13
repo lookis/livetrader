@@ -25,7 +25,7 @@ class MarketBase(object):
     async def watch_klines(self, symbol: str):
         raise NotImplementedError()
 
-    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, limit: Optional[int] = None):
+    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, to_ts: Optional[int] = None, limit: Optional[int] = None):
         raise NotImplementedError()
 
 
@@ -51,8 +51,8 @@ class MarketService(object):
 
     @Method
     async def get_kline_histories(
-            self, symbol: str, from_ts: Optional[datetime] = None, limit: Optional[int] = None):
-        return list(await self._market.get_kline_histories(symbol, from_ts, limit))
+            self, symbol: str, from_ts: Optional[int] = None, to_ts: Optional[int] = None, limit: Optional[int] = None):
+        return list(await self._market.get_kline_histories(symbol, from_ts, to_ts, limit))
 
     def stop(self):
         for task in self._tasks:

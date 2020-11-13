@@ -1,10 +1,11 @@
+from datetime import datetime
 from typing import List, Optional
 
 from environs import Env
 from future.utils import iteritems
+from livetrader.market import MarketBase
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ReplaceOne
-from livetrader.market import MarketBase
 
 
 class CachedMarket(MarketBase):
@@ -67,14 +68,19 @@ class CachedMarket(MarketBase):
             await self._insert_db(symbol, [kline])
             yield kline
 
-    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, limit: Optional[int] = None):
+    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, to_ts: Optional[int] = None, limit: Optional[int] = None):
         if not self._initied:
             await self._initial_cache(symbol)
             self._initied = True
         collection = self._collection(symbol)
         criteria = {}
+        datetime_criteria = {}
         if from_ts:
-            criteria = {'datetime': {'$gte': from_ts}}
+            datetime_criteria['$gte'] = from_ts
+        if to_ts:
+            datetime_criteria['$lte'] = to_ts
+        if from_ts or to_ts:
+            criteria['datetime'] = datetime_criteria
         cursor = collection.find(criteria).sort([('datetime', -1)])
         if limit:
             cursor = cursor.limit(limit)

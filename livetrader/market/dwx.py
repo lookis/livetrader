@@ -6,10 +6,10 @@ from typing import Optional
 import pytz
 import tzlocal
 from environs import Env
-from pandas import Timedelta, Timestamp
-from pytz import timezone
 from livetrader.lib.dwx_zeromq_connector import DWX_ZeroMQ_Connector
 from livetrader.market import MarketBase
+from pandas import Timedelta, Timestamp
+from pytz import timezone
 
 
 class DwxMarket(MarketBase):
@@ -82,11 +82,14 @@ class DwxMarket(MarketBase):
                 kline = await self._kline_sub[code].get()
                 yield kline
 
-    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, limit: Optional[int] = None):
+    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, to_ts: Optional[int] = None, limit: Optional[int] = None):
         market, code = symbol.split('.')
         if market == 'FOREX':
             local_tz = tzlocal.get_localzone()
-            _end = local_tz.localize(Timestamp.now())
+            if to_ts:
+                _end = local_tz.localize(Timestamp.fromtimestamp(to_ts / 1000))
+            else:
+                _end = local_tz.localize(Timestamp.now())
             if from_ts:
                 _start = local_tz.localize(Timestamp.fromtimestamp(
                     from_ts / 1000))

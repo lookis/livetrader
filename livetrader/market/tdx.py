@@ -4,11 +4,11 @@ from typing import Optional
 
 import pytz
 from environs import Env
+from livetrader.exceptions import RemoteError
+from livetrader.market import MarketBase
 from pytdx.exhq import TdxExHq_API, TDXParams
 from pytdx.parser.ex_get_instrument_bars import GetInstrumentBars
 from pytz import timezone
-from livetrader.exceptions import RemoteError
-from livetrader.market import MarketBase
 
 
 class TdxMarket(MarketBase):
@@ -52,7 +52,7 @@ class TdxMarket(MarketBase):
                 last_kline = latest_kline
             await sleep(1)
 
-    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, limit: Optional[int] = None):
+    async def get_kline_histories(self, symbol: str, from_ts: Optional[int] = None, to_ts: Optional[int] = None, limit: Optional[int] = None):
         market, code = symbol.split('.')
         if self._market_mapping[market] in self._market_list:
             bars = []
@@ -68,6 +68,8 @@ class TdxMarket(MarketBase):
                     idx += 1
                 # 前面都是整700地取，所以有可能取到的数据会超过 from_ts,因此这里再做一次过滤
                 bars = list(filter(lambda x: x['datetime'] >= from_ts, bars))
+                if to_ts:
+                    bars = list(filter(lambda x: x['datetime'] <= to_ts, bars))
             elif limit is not None:
                 for i in range(limit // 700):
                     bars += [
