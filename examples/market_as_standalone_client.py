@@ -9,6 +9,9 @@ class PrintSubscriber(MarketSubscriber):
     def on_kline(self, kline: dict):
         print('recv kline: %s' % kline, flush=True)
 
+    def on_state(self, isalive: bool):
+        print('connect state isalive? %s' % isalive)
+
 
 def subscribe_kline(endpoint: str, symbol: str):
     subscriber = PrintSubscriber(symbol)

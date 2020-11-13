@@ -2,6 +2,7 @@ import asyncio
 import functools
 import logging
 import signal
+import time
 
 import gevent
 import zerorpc
@@ -26,8 +27,11 @@ class Client(_Client):
 
 class MarketSubscriber(Subscriber):
 
-    def __init__(self, symbol: str):
+    def __init__(self, symbol: str, heartbeat_freq: int = 5):
         super().__init__()
+        self._remote_last_hb = None
+        self._lost_remote = False
+        self._heartbeat_freq = heartbeat_freq
         self._symbol = symbol
         self._pill2kill = asyncio.Event()
 
@@ -35,8 +39,28 @@ class MarketSubscriber(Subscriber):
         _endpoint = "%s_%s" % (endpoint, self._symbol)
         return super().connect(endpoint=_endpoint, resolve=resolve)
 
+    def on_state(self, isalive: bool):
+        return
+
     def on_kline(self, kline: dict):
         raise NotImplementedError()
+
+    def on_heartbeat(self):
+        print('on heartbeat')
+        self._remote_last_hb = time.time()
+        if self._lost_remote:
+            self._lost_remote = False
+            self.on_state(not self._lost_remote)
+
+    async def _heartbeat(self):
+        while not self._pill2kill.is_set():
+            await asyncio.sleep(self._heartbeat_freq)
+            if self._remote_last_hb is None:
+                self._remote_last_hb = time.time()
+            if time.time() > self._remote_last_hb + self._heartbeat_freq * 3:
+                if not self._lost_remote:
+                    self._lost_remote = True
+                    self.on_state(not self._lost_remote)
 
     def run(self):
         self._gevent_task = gevent.spawn(super().run)
@@ -46,6 +70,7 @@ class MarketSubscriber(Subscriber):
                 await asyncio.sleep(0)
                 gevent.sleep(0)
         self._asyncio_task = asyncio.get_event_loop().create_task(the_loop())
+        self._heartbeat_task = asyncio.get_event_loop().create_task(self._heartbeat())
 
     def close(self):
         self._pill2kill.set()
@@ -53,6 +78,8 @@ class MarketSubscriber(Subscriber):
             self._gevent_task.kill()
         if self._asyncio_task is not None:
             self._asyncio_task.cancel()
+        if self._heartbeat_task is not None:
+            self._heartbeat_task.cancel()
 
 
 class Method(object):
@@ -77,9 +104,10 @@ class Method(object):
 
 class Server(object):
 
-    def __init__(self, service):
+    def __init__(self, service, heartbeat_freq: int = 5):
         self._service = service
         self._publishers = {}
+        self._heartbeat_freq = heartbeat_freq
         self._logger = logging.getLogger('Server')
         methods = dict((k, self._decorate_coroutine_method(getattr(service, k))) for k in dir(service)
                        if isinstance(getattr(service, k), Method))
@@ -98,6 +126,15 @@ class Server(object):
         else:
             return method
 
+    def _heartbeat(self):
+        while not self._pill2kill.is_set():
+            # 这里不创建一个新的 endpoint 用于 heartbeat 的原因在于 heartbeat
+            # 不仅仅是为了探测广播者是否还存活，还需要判断到各节点的网络通路是好的。否则就有可能出现 heartbeat 的 tcp 存活但是
+            # publish 的 tcp 断开的情况
+            for publisher in self._publishers.values():
+                publisher.on_heartbeat()
+            gevent.sleep(self._heartbeat_freq)
+
     def _publish(self, queue: FifoQueue):
         while not self._pill2kill.is_set():
             gevent.sleep(0)
@@ -115,6 +152,7 @@ class Server(object):
         gevent.signal_handler(signal.SIGINT, self.close)
         gevent.signal_handler(signal.SIGTERM, self.close)
 
+        self._heartbeat_task = gevent.spawn(self._heartbeat)
         queue = self._service.start()
         self._publish_task = gevent.spawn(self._publish, (queue))
         self._server_task = gevent.spawn(self.s.run)
@@ -128,6 +166,8 @@ class Server(object):
         self._logger.info('Server stopping...')
         if self._publish_task is not None:
             self._publish_task.kill()
+        if self._heartbeat_task is not None:
+            self._heartbeat_task.kill()
         self.s.close()
         if self._server_task is not None:
             self._server_task.kill()

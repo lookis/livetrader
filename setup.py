@@ -18,6 +18,7 @@ setuptools.setup(
         'tzlocal',
         'environs',
         'zerorpc',
+        'pandas',
         'pymongo',
         'motor',
     ],

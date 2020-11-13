@@ -1,4 +1,8 @@
 from .base import *
 from .cache import *
 from .dwx import *
-from .tdx import *
+
+try:
+    from .tdx import *
+except ModuleNotFoundError:
+    pass
