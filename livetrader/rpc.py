@@ -46,7 +46,6 @@ class MarketSubscriber(Subscriber):
         raise NotImplementedError()
 
     def on_heartbeat(self):
-        print('on heartbeat')
         self._remote_last_hb = time.time()
         if self._lost_remote:
             self._lost_remote = False
