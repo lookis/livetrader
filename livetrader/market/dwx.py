@@ -33,6 +33,7 @@ class DwxMarket(MarketBase):
         self._server_tz = timezone(
             time_zone if time_zone else env.str(
                 'DWX_TIMEZONE', 'EET'))
+        self._last_kline = None
 
     def connect(self):
         self._kline_resp = {}
@@ -41,9 +42,9 @@ class DwxMarket(MarketBase):
             _host=self._host,
             _PUSH_PORT=self._push_port,
             _PULL_PORT=self._pulling_port,
-            _SUB_PORT=self._subscribe_port,
-            _subdata_handlers=[self],
-            _pulldata_handlers=[self])
+            _SUB_PORT=self._subscribe_port)
+        self._connector.add_pulldata_handler(self)
+        self._connector.add_subdata_handler(self)
 
     def disconnect(self):
         self._connector._DWX_ZMQ_SHUTDOWN_()

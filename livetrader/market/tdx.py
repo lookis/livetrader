@@ -1,3 +1,4 @@
+import asyncio
 from asyncio import Event, sleep
 from datetime import datetime
 from typing import Optional
@@ -26,7 +27,8 @@ class TdxMarket(MarketBase):
     def __init__(self, host: Optional[str] = None):
         self._env = env = Env()
         env.read_env()
-        tdx_host = host if host else env.str('TDX_HOST')
+        tdx_host = host if host else env.str(
+            'TDX_HOST', asyncio.run(_select_host()))
         self._api = TdxExHq_API(heartbeat=True, multithread=True)
         self._ip, self._port = tdx_host.split(':')
         self._server_tz = timezone('Asia/Shanghai')
@@ -123,3 +125,18 @@ class TdxMarket(MarketBase):
             'close': str(round(kline_tdx['close'], 2)),
             'volume': kline_tdx['trade'],
         }
+
+
+hosts = [('112.74.214.43', 7727), ('47.92.127.181', 7727),
+         ('47.107.75.159', 7727), ('106.14.95.149', 7727), ('47.102.108.214', 7727)]
+
+
+async def _select_host():
+    async def ping(ip, port):
+        await asyncio.open_connection(ip, port)
+        return (ip, port)
+    done, pendings = await asyncio.wait([asyncio.get_event_loop().create_task(ping(
+        ip, port)) for ip, port in hosts], return_when=asyncio.FIRST_COMPLETED)
+    for task in pendings:
+        task.cancel()
+    return done[0].result()

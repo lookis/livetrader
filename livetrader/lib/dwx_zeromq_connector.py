@@ -17,6 +17,7 @@ import asyncio
 import logging
 from asyncio import sleep
 from threading import Thread
+from typing import Any
 
 import zmq
 import zmq.asyncio
@@ -25,7 +26,40 @@ from pandas import DataFrame, Timestamp
 from zmq.utils.monitor import recv_monitor_message
 
 
-class DWX_ZeroMQ_Connector():
+class DWX_Connector(type):
+    _instances = {}
+
+    def __call__(self, _ClientID='dwx-zeromq',    # Unique ID for this client
+                 _host='localhost',         # Host to connect to
+                 _protocol='tcp',           # Connection protocol
+                 _PUSH_PORT=32768,          # Port for Sending commands
+                 _PULL_PORT=32769,          # Port for Receiving responses
+                 _SUB_PORT=32770,           # Port for Subscribing for prices
+                 _delimiter=';',
+                 _verbose=True,             # String delimiter
+                 _sleep_delay=0.001,        # 1 ms for time.sleep()
+                 _monitor=False, *args: Any, **kwds: Any) -> Any:
+        key = '%s_%s_%s' % (_ClientID, _host, _protocol)
+        if key in DWX_Connector._instances:
+            return DWX_Connector._instances[key]
+        else:
+            instance = DWX_Connector._instances[key] = super().__call__(
+                _ClientID,
+                _host,
+                _protocol,
+                _PUSH_PORT,
+                _PULL_PORT,
+                _SUB_PORT,
+                _delimiter,
+                _verbose,
+                _sleep_delay,
+                _monitor,
+                *args,
+                **kwds)
+            return instance
+
+
+class DWX_ZeroMQ_Connector(object, metaclass=DWX_Connector):
 
     """
     Setup ZeroMQ -> MetaTrader Connector
@@ -39,9 +73,6 @@ class DWX_ZeroMQ_Connector():
                  _PULL_PORT=32769,          # Port for Receiving responses
                  _SUB_PORT=32770,           # Port for Subscribing for prices
                  _delimiter=';',
-                 _pulldata_handlers=[],
-                 # Handlers to process data received through PULL port.
-                 _subdata_handlers=[],
                  # Handlers to process data received through SUB port.
                  _verbose=True,             # String delimiter
                  _sleep_delay=0.001,        # 1 ms for time.sleep()
@@ -69,8 +100,8 @@ class DWX_ZeroMQ_Connector():
         self._URL = self._protocol + "://" + self._host + ":"
 
         # Handlers for received data (pull and sub ports)
-        self._pulldata_handlers = _pulldata_handlers
-        self._subdata_handlers = _subdata_handlers
+        self._pulldata_handlers = []
+        self._subdata_handlers = []
 
         # Ports for PUSH, PULL and SUB sockets respectively
         self._PUSH_PORT = _PUSH_PORT
@@ -175,19 +206,32 @@ class DWX_ZeroMQ_Connector():
                     'PULL', self._PULL_SOCKET.get_monitor_socket())))
 
     ##########################################################################
+    def add_pulldata_handler(self, handler):
+        self._pulldata_handlers.append(handler)
+
+    def remove_pulldata_handler(self, handler):
+        self._pulldata_handlers.remove(handler)
+
+    def add_subdata_handler(self, handler):
+        self._subdata_handlers.append(handler)
+
+    def remove_subdata_handler(self, handler):
+        self._subdata_handlers.remove(handler)
+
+    ##########################################################################
 
     def _DWX_ZMQ_SHUTDOWN_(self):
+        if self._ACTIVE:
+            # Set INACTIVE
+            self._ACTIVE = False
 
-        # Set INACTIVE
-        self._ACTIVE = False
+            for task in self._tasks:
+                task.cancel()
 
-        for task in self._tasks:
-            task.cancel()
-
-        # Terminate context
-        self._ZMQ_CONTEXT.destroy(0)
-        self._logger.info(
-            "\n++ [KERNEL] ZeroMQ Context Terminated.. shut down safely complete! :)")
+            # Terminate context
+            self._ZMQ_CONTEXT.destroy(0)
+            self._logger.info(
+                "\n++ [KERNEL] ZeroMQ Context Terminated.. shut down safely complete! :)")
 
     ##########################################################################
 
@@ -402,6 +446,19 @@ class DWX_ZeroMQ_Connector():
         _msg = 'TRACK_RATES'
         for i in _instruments:
             _msg = _msg + ";{};{}".format(i[1], i[2])
+
+        # Send via PUSH Socket
+        await self.remote_send(self._PUSH_SOCKET, _msg)
+
+    ##########################################################################
+
+    """
+    Function to construct messages for sending ACCOUNT commands to
+    MetaTrader for Account Info
+    """
+
+    async def _DWX_MTX_SEND_ACCOUNT_REQUEST_(self):
+        _msg = 'ACCOUNT'
 
         # Send via PUSH Socket
         await self.remote_send(self._PUSH_SOCKET, _msg)

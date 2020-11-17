@@ -397,7 +397,10 @@ void InterpretZmqMessage(Socket &pSocket, string &compArray[]) {
       switch_action = 9;
    if(compArray[0] == "TRACK_RATES")
       switch_action = 10;
-   
+   //new add
+   if(compArray[0] == "ACCOUNT")
+      switch_action = 11;
+
    // IMPORTANT: when adding new functions, also increase the max switch_action in CheckOpsStatus()!
    
    /* Setup processing variables */
@@ -520,6 +523,16 @@ void InterpretZmqMessage(Socket &pSocket, string &compArray[]) {
         
          // if a case is added, also change max switch_action in CheckOpsStatus()!
             
+         case 11: // RETURN ACCOUNT INFO
+
+            zmq_ret = "{";
+
+            DWX_SetAccountInfo(zmq_ret);
+
+            InformPullClient(pSocket, zmq_ret + "}");
+
+            break;
+
          default: 
             break;
       }
@@ -529,7 +542,7 @@ void InterpretZmqMessage(Socket &pSocket, string &compArray[]) {
 // Check if operations are permitted
 bool CheckOpsStatus(Socket &pSocket, int switch_action) {
 
-   if (switch_action >= 1 && switch_action <= 10) {
+   if (switch_action >= 1 && switch_action <= 11) {
    
       if (!IsTradeAllowed()) {
          InformPullClient(pSocket, "{'_response': 'TRADING_IS_NOT_ALLOWED__ABORTED_COMMAND'}");
@@ -690,6 +703,37 @@ void DWX_SetSymbolList(string& compArray[], string& zmq_ret) {
    Print(result);
 }
 
+
+//+------------------------------------------------------------------+
+// Set Account information
+void DWX_SetAccountInfo(string& zmq_ret) {
+
+   zmq_ret = zmq_ret + "'_action': 'ACCOUNT'";
+
+   string result = " { ";
+   printf("ACCOUNT_BALANCE =  %G",AccountInfoDouble(ACCOUNT_BALANCE)); 
+   result += StringFormat(" 'balance': %G", AccountInfoDouble(ACCOUNT_BALANCE));
+   printf("ACCOUNT_CREDIT =  %G",AccountInfoDouble(ACCOUNT_CREDIT)); 
+   result += StringFormat(", 'credit': %G", AccountInfoDouble(ACCOUNT_CREDIT));
+   printf("ACCOUNT_PROFIT =  %G",AccountInfoDouble(ACCOUNT_PROFIT)); 
+   result += StringFormat(", 'profit': %G", AccountInfoDouble(ACCOUNT_PROFIT));
+   printf("ACCOUNT_EQUITY =  %G",AccountInfoDouble(ACCOUNT_EQUITY)); 
+   result += StringFormat(", 'equity': %G", AccountInfoDouble(ACCOUNT_EQUITY));
+   printf("ACCOUNT_MARGIN =  %G",AccountInfoDouble(ACCOUNT_MARGIN)); 
+   result += StringFormat(", 'margin': %G", AccountInfoDouble(ACCOUNT_MARGIN));
+   printf("ACCOUNT_MARGIN_FREE =  %G",AccountInfoDouble(ACCOUNT_FREEMARGIN)); 
+   result += StringFormat(", 'margin_free': %G", AccountInfoDouble(ACCOUNT_FREEMARGIN));
+   printf("ACCOUNT_MARGIN_LEVEL =  %G",AccountInfoDouble(ACCOUNT_MARGIN_LEVEL)); 
+   result += StringFormat(", 'margin_level': %G", AccountInfoDouble(ACCOUNT_MARGIN_LEVEL));
+   printf("ACCOUNT_MARGIN_SO_CALL = %G",AccountInfoDouble(ACCOUNT_MARGIN_SO_CALL)); 
+   result += StringFormat(", 'margin_so_call': %G", AccountInfoDouble(ACCOUNT_MARGIN_SO_CALL));
+   printf("ACCOUNT_MARGIN_SO_SO = %G",AccountInfoDouble(ACCOUNT_MARGIN_SO_SO)); 
+   result += StringFormat(", 'margin_so_so': %G", AccountInfoDouble(ACCOUNT_MARGIN_SO_SO));
+   result += " } ";
+
+   zmq_ret = zmq_ret + ", '_data':" + result;
+
+}
 
 //+------------------------------------------------------------------+
 // Set list of instruments to get OHLC rates
@@ -1097,7 +1141,7 @@ void DWX_GetOpenOrders(string &zmq_ret) {
       
          zmq_ret = zmq_ret + IntegerToString(OrderTicket()) + ": {";
          
-         zmq_ret = zmq_ret + "'_magic': " + IntegerToString(OrderMagicNumber()) + ", '_symbol': '" + OrderSymbol() + "', '_lots': " + DoubleToString(OrderLots()) + ", '_type': " + IntegerToString(OrderType()) + ", '_open_price': " + DoubleToString(OrderOpenPrice()) + ", '_open_time': '" + TimeToStr(OrderOpenTime(),TIME_DATE|TIME_SECONDS) + "', '_SL': " + DoubleToString(OrderStopLoss()) + ", '_TP': " + DoubleToString(OrderTakeProfit()) + ", '_pnl': " + DoubleToString(OrderProfit()) + ", '_comment': '" + OrderComment() + "'";
+         zmq_ret = zmq_ret + "'_magic': " + IntegerToString(OrderMagicNumber()) + ", '_symbol': '" + OrderSymbol() + "', '_lots': " + DoubleToString(OrderLots()) + ", '_commission': " + DoubleToString(OrderCommission()) + ", '_type': " + IntegerToString(OrderType()) + ", '_open_price': " + DoubleToString(OrderOpenPrice()) + ", '_open_time': '" + TimeToStr(OrderOpenTime(),TIME_DATE|TIME_SECONDS) + "', '_SL': " + DoubleToString(OrderStopLoss()) + ", '_TP': " + DoubleToString(OrderTakeProfit()) + ", '_pnl': " + DoubleToString(OrderProfit()) + ", '_comment': '" + OrderComment() + "'";
          
          if (i != 0)
             zmq_ret = zmq_ret + "}, ";

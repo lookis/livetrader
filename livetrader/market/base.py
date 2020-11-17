@@ -39,7 +39,8 @@ class MarketService(object):
 
     async def _publish(self, symbol: str, queue: FifoQueue):
         async for kline in self._market.watch_klines(symbol):
-            await queue.put((symbol, kline))
+            # print('yield only one')
+            await queue.put((symbol, 'on_kline', kline))
 
     def start(self):
         queue = FifoQueue(maxsize=100)

@@ -18,32 +18,16 @@ class Publisher(_Publisher):
 
 
 class Subscriber(_Subscriber):
-    pass
 
-
-class Client(_Client):
-    pass
-
-
-class MarketSubscriber(Subscriber):
-
-    def __init__(self, symbol: str, heartbeat_freq: int = 5):
+    def __init__(self, heartbeat_freq: int):
         super().__init__()
         self._remote_last_hb = None
         self._lost_remote = False
         self._heartbeat_freq = heartbeat_freq
-        self._symbol = symbol
         self._pill2kill = asyncio.Event()
-
-    def connect(self, endpoint, resolve=True):
-        _endpoint = "%s_%s" % (endpoint, self._symbol)
-        return super().connect(endpoint=_endpoint, resolve=resolve)
 
     def on_state(self, isalive: bool):
         return
-
-    def on_kline(self, kline: dict):
-        raise NotImplementedError()
 
     def on_heartbeat(self):
         self._remote_last_hb = time.time()
@@ -73,12 +57,47 @@ class MarketSubscriber(Subscriber):
 
     def close(self):
         self._pill2kill.set()
-        if self._gevent_task is not None:
+        if self._gevent_task is not None and not self._gevent_task.dead:
             self._gevent_task.kill()
         if self._asyncio_task is not None:
             self._asyncio_task.cancel()
         if self._heartbeat_task is not None:
             self._heartbeat_task.cancel()
+
+
+class Client(_Client):
+    pass
+
+
+class TradeSubscriber(Subscriber):
+
+    def __init__(self, client_id: str, heartbeat_freq: int = 5):
+        super().__init__(heartbeat_freq)
+        self.client_id = client_id
+
+    def connect(self, endpoint, resolve=True):
+        _endpoint = "%s_%s" % (endpoint, self.client_id)
+        return super().connect(endpoint=_endpoint, resolve=resolve)
+
+    def on_order(self, order: dict):
+        return
+
+    def on_trade(self, trade: dict):
+        return
+
+
+class MarketSubscriber(Subscriber):
+
+    def __init__(self, symbol: str, heartbeat_freq: int = 5):
+        super().__init__(heartbeat_freq)
+        self._symbol = symbol
+
+    def connect(self, endpoint, resolve=True):
+        _endpoint = "%s_%s" % (endpoint, self._symbol)
+        return super().connect(endpoint=_endpoint, resolve=resolve)
+
+    def on_kline(self, kline: dict):
+        raise NotImplementedError()
 
 
 class Method(object):
@@ -138,13 +157,13 @@ class Server(object):
         while not self._pill2kill.is_set():
             gevent.sleep(0)
             if not queue.empty():
-                symbol, kline = queue.get_nowait()
-                if symbol in self._publishers:
-                    publisher = self._publishers[symbol]
+                client_id, method, msg = queue.get_nowait()
+                if client_id in self._publishers:
+                    publisher = self._publishers[client_id]
                 else:
-                    publisher = self._publishers[symbol] = Publisher()
-                    publisher.bind('%s_%s' % (self._endpoint, symbol))
-                publisher.on_kline(kline)
+                    publisher = self._publishers[client_id] = Publisher()
+                    publisher.bind('%s_%s' % (self._endpoint, client_id))
+                publisher(method, msg)
 
     def run(self):
         # register shutdown handler

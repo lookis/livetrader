@@ -1,13 +1,12 @@
 import asyncio
 
-from livetrader.market import (CachedMarket, DwxMarket, MarketService,
-                                 TdxMarket)
+from livetrader.market import CachedMarket, DwxMarket, MarketService, TdxMarket
 
 
 async def listern_to_latest_kline(kline_queue):
     print('get latest kline')
     for i in range(5):
-        (symbol, kline) = await kline_queue.get()
+        (symbol, _, kline) = await kline_queue.get()
         print("%s, %s" % (symbol, kline))
 
 

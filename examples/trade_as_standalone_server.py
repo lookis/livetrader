@@ -1,14 +1,12 @@
 import logging
 
-from livetrader.market import CachedMarket, DwxMarket, MarketService, TdxMarket
 from livetrader.rpc import Server
+from livetrader.trade import DwxTrade, TradeService
 
 
 def create_server():
-    market = CachedMarket(
-        DwxMarket(host='192.168.50.113'),
-        mongodb_uri='mongodb://root:example@127.0.0.1:27016/?authMechanism=SCRAM-SHA-256')
-    service = MarketService(market, ['FOREX.EURUSD'])
+    trader = DwxTrade(host='192.168.50.113')
+    service = TradeService(trader, ['FOREX.EURUSD'])
     server = Server(service)
     server.bind('ipc:///tmp/market')
     return server

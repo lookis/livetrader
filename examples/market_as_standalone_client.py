@@ -22,9 +22,9 @@ def subscribe_kline(endpoint: str, symbol: str):
 
 async def main():
     endpoint = "ipc:///tmp/market"
-    symbol = 'US.BABA'
+    symbol = 'FOREX.EURUSD'
     subscriber = subscribe_kline(endpoint, symbol)
-    await asyncio.sleep(5)
+    await asyncio.sleep(200)
     subscriber.close()
 
     client = Client()

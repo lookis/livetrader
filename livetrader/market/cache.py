@@ -83,15 +83,16 @@ class CachedMarket(MarketBase):
         if from_ts or to_ts:
             criteria['datetime'] = datetime_criteria
             pipeline.append({'$match': criteria})
-        pipeline.append({'$group': {
-            '_id': {'$floor': {'$divide': ["$datetime", 1000 * 60 * timeframe]}},
-            'datetime': {'$first': "$datetime"},
-            'open': {'$first': "$open"},
-            'high': {'$max': "$high"},
-            'low': {'$min': "$low"},
-            'close': {'$last': "$close"},
-            'volume': {'$sum': "$volume"}
-        }})
+        if timeframe > 1:
+            pipeline.append({'$group': {
+                '_id': {'$floor': {'$divide': ["$datetime", 1000 * 60 * timeframe]}},
+                'datetime': {'$first': "$datetime"},
+                'open': {'$first': "$open"},
+                'high': {'$max': "$high"},
+                'low': {'$min': "$low"},
+                'close': {'$last': "$close"},
+                'volume': {'$sum': "$volume"}
+            }})
         if limit:
             pipeline.append({'$sort': {'datetime': -1}})
             pipeline.append({
